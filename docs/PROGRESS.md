@@ -3,13 +3,13 @@
 This checklist tracks completion of each phase of the project:
 
 - [x] **PHASE 0**: Research freeze & free-tier decisions
-- [/] **PHASE 1**: Repository bootstrap
+- [x] **PHASE 1**: Repository bootstrap
   - [x] Initial structure & Git initialization
   - [x] `.env.example` & `docker-compose.yml`
   - [x] FastAPI core server with health/warmup endpoints
-  - [/] Next.js frontend skeleton bootstrapping
-  - [ ] README template
-- [ ] **PHASE 2**: Dataset Ingestion
+  - [x] Next.js frontend skeleton bootstrapping
+  - [x] README template
+- [/] **PHASE 2**: Dataset Ingestion
 - [ ] **PHASE 3**: Core services + unit tests
 - [ ] **PHASE 4**: Multi-strategy chunking engine
 - [ ] **PHASE 5**: Orchestrator + Guardrails

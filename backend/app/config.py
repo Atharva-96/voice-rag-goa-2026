@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION_NAME: str = "msmarco_xi_hindi"
 
     # Models
-    EMBEDDING_MODEL_NAME: str = "intfloat/multilingual-e5-small"
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     GROQ_MODEL_NAME: str = "llama-3.1-8b-instant"
 
     # Environment
