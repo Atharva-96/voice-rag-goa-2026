@@ -21,12 +21,16 @@ This checklist tracks completion of each phase of the project:
 - [x] **PHASE 4**: Multi-strategy chunking engine
   - [x] Sentence boundary segmentation (with Devanagari `।` support)
   - [x] Length-aware grouping with adaptive context overlap
-- [/] **PHASE 5**: Orchestrator + Guardrails
-  - [ ] Implement guardrails (L1 input, L2 context confidence, L3 grounding)
-  - [ ] Implement query orchestrator routes in FastAPI
-  - [ ] Include retry/timeout logging & request IDs
-- [ ] **PHASE 6**: Latency instrumentation & Dashboard
-- [ ] **PHASE 7**: Frontend interface
+- [x] **PHASE 5**: Orchestrator + Guardrails
+  - [x] Implement guardrails (L1 input, L2 context confidence, L3 grounding)
+  - [x] Implement query orchestrator routes in FastAPI
+  - [x] Include retry/timeout logging & request IDs
+- [x] **PHASE 6**: Latency instrumentation & Dashboard
+  - [x] Implement benchmark script with real P50/P70/P100 measurements
+  - [x] Implement metrics reporting dashboard endpoints
+- [/] **PHASE 7**: Frontend interface
+  - [ ] Build voice recorder Web Audio API component in Next.js
+  - [ ] Add latency breakdown visualizer and guardrail warning alerts
 - [ ] **PHASE 8**: Evaluation suite
 - [ ] **PHASE 9**: Deployment & Smoke tests
 - [ ] **PHASE 10**: Final Polish
