@@ -28,9 +28,10 @@ This checklist tracks completion of each phase of the project:
 - [x] **PHASE 6**: Latency instrumentation & Dashboard
   - [x] Implement benchmark script with real P50/P70/P100 measurements
   - [x] Implement metrics reporting dashboard endpoints
-- [/] **PHASE 7**: Frontend interface
-  - [ ] Build voice recorder Web Audio API component in Next.js
-  - [ ] Add latency breakdown visualizer and guardrail warning alerts
-- [ ] **PHASE 8**: Evaluation suite
+- [x] **PHASE 7**: Frontend interface
+  - [x] Build voice recorder Web Audio API component in Next.js
+  - [x] Add latency breakdown visualizer and guardrail warning alerts
+- [/] **PHASE 8**: Evaluation suite
+  - [ ] Implement query/grounding retrieval validation tests
 - [ ] **PHASE 9**: Deployment & Smoke tests
 - [ ] **PHASE 10**: Final Polish

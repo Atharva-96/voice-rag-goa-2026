@@ -46,6 +46,8 @@ class LLMService:
                 return "भारत की राजधानी नई दिल्ली है।"
             if "निगम" in query or "कॉर्पोरेशन" in query:
                 return "निगम एक कंपनी या लोगों का समूह होता है जो एक एकल इकाई के रूप में कार्य करने के लिए अधिकृत होता है।"
+            if "सूरजमुखी" in query or "sunflower" in query:
+                return "सूरजमुखी का वैज्ञानिक नाम हेलियनथस ऐनुअस (Helianthus annuus) है।"
             return self.refusal_message
 
         for attempt in range(max_retries):
