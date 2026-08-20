@@ -31,7 +31,12 @@ This checklist tracks completion of each phase of the project:
 - [x] **PHASE 7**: Frontend interface
   - [x] Build voice recorder Web Audio API component in Next.js
   - [x] Add latency breakdown visualizer and guardrail warning alerts
-- [/] **PHASE 8**: Evaluation suite
-  - [ ] Implement query/grounding retrieval validation tests
-- [ ] **PHASE 9**: Deployment & Smoke tests
-- [ ] **PHASE 10**: Final Polish
+- [x] **PHASE 8**: Evaluation suite
+  - [x] Implement query/grounding retrieval validation tests
+- [x] **PHASE 9**: Deployment & Smoke tests
+  - [x] Deploy backend FastAPI service on Render free tier
+  - [x] Deploy frontend Next.js application on Vercel
+  - [x] Include Render cold start keep-alive warmup script
+- [x] **PHASE 10**: Final Polish
+  - [x] Complete README with measured baseline latency results
+  - [x] Perform demo readiness checklist verification
