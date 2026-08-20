@@ -13,6 +13,32 @@ from app.services.embedding_service import embedding_service
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
+def mock_external_services():
+    from unittest.mock import MagicMock, patch
+    from app.services.stt_service import stt_service
+    from app.services.llm_service import llm_service
+    from app.services.guardrails import guardrails
+
+    mock_transcribe = MagicMock(return_value="कॉर्पोरेशन क्या है?")
+    
+    def side_effect_generate(query, contexts, max_retries=3):
+        if not contexts:
+            return llm_service.refusal_message
+        if "capital" in query or "राजधानी" in query:
+            return "भारत की राजधानी नई दिल्ली है।"
+        if "निगम" in query or "कॉर्पोरेशन" in query:
+            return "निगम एक कंपनी या लोगों का समूह होता है जो एक एकल इकाई के रूप में कार्य करने के लिए अधिकृत होता है।"
+        return llm_service.refusal_message
+
+    mock_generate = MagicMock(side_effect=side_effect_generate)
+    mock_validate_grounding = MagicMock(return_value=True)
+
+    with patch.object(stt_service, "transcribe", mock_transcribe), \
+         patch.object(llm_service, "generate_answer", mock_generate), \
+         patch.object(guardrails, "validate_grounding", mock_validate_grounding):
+        yield
+
+@pytest.fixture(autouse=True)
 def setup_qdrant_data():
     # Force recreate collection and insert test mock documents
     qclient = retrieval_service.client

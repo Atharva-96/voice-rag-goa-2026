@@ -70,21 +70,42 @@ def test_retrieval_service_flow():
     assert results[0].score > 0.3
 
 def test_stt_service_mock():
+    from unittest.mock import MagicMock, patch
     from app.services.stt_service import stt_service
-    # With missing key, it should fall back to mock transcription
-    transcript = stt_service.transcribe(b"fake_audio_bytes")
-    assert transcript == "कॉर्पोरेशन क्या है?"
+
+    with patch("app.services.stt_service.requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"transcript": "कॉर्पोरेशन क्या है?"}
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
+
+        transcript = stt_service.transcribe(b"fake_audio_bytes")
+        assert transcript == "कॉर्पोरेशन क्या है?"
 
 def test_llm_service_refusal_and_mock():
+    from unittest.mock import MagicMock, patch
     from app.services.llm_service import llm_service
+    
     # Empty context must trigger standard refusal
     ans_empty = llm_service.generate_answer("क्या भारत की राजधानी नई दिल्ली है?", [])
     assert ans_empty == llm_service.refusal_message
 
-    # Non-empty context should return grounded answer
-    ans_grounded = llm_service.generate_answer(
-        "भारत की राजधानी क्या है?", 
-        ["भारत की राजधानी नई दिल्ली है।"]
-    )
-    assert "नई दिल्ली" in ans_grounded
+    # Non-empty context should return grounded answer using mocked Groq client
+    mock_client = MagicMock()
+    mock_chat = MagicMock()
+    mock_completions = MagicMock()
+    mock_completion = MagicMock()
+    
+    mock_completion.choices = [MagicMock()]
+    mock_completion.choices[0].message.content = "भारत की राजधानी नई दिल्ली है।"
+    mock_completions.create.return_value = mock_completion
+    mock_chat.completions = mock_completions
+    mock_client.chat = mock_chat
+
+    with patch.object(llm_service, "_client", mock_client):
+        ans_grounded = llm_service.generate_answer(
+            "भारत की राजधानी क्या है?", 
+            ["भारत की राजधानी नई दिल्ली है।"]
+        )
+        assert "नई दिल्ली" in ans_grounded
 

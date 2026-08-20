@@ -1,9 +1,20 @@
+import re
 import time
 from typing import List
 from groq import Groq
 from loguru import logger
 
 from app.config import settings
+
+def clean_think_tags(text: str) -> str:
+    """
+    Strips reasoning blocks wrapped in <think>...</think> tags.
+    """
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    if '<think>' in cleaned.lower():
+        cleaned = cleaned.split('<think>')[0]
+    return cleaned.strip()
+
 
 class LLMService:
     def __init__(self):
@@ -63,7 +74,7 @@ class LLMService:
                     max_tokens=500
                 )
                 answer = chat_completion.choices[0].message.content.strip()
-                return answer
+                return clean_think_tags(answer)
             except Exception as e:
                 logger.error(f"Groq API error on attempt {attempt + 1}: {e}")
                 if attempt == max_retries - 1:

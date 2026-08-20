@@ -1,8 +1,19 @@
+import re
 from typing import List
 from loguru import logger
 from app.config import settings
 from app.models import SourceDoc
 from app.services.llm_service import llm_service
+
+def clean_think_tags(text: str) -> str:
+    """
+    Strips reasoning blocks wrapped in <think>...</think> tags.
+    """
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    if '<think>' in cleaned.lower():
+        cleaned = cleaned.split('<think>')[0]
+    return cleaned.strip()
+
 
 class Guardrails:
     def __init__(self):
@@ -87,10 +98,11 @@ class Guardrails:
                 ],
                 model=settings.GROQ_MODEL_NAME,
                 temperature=0.0,
-                max_tokens=5
+                max_tokens=500
             )
-            decision = chat_completion.choices[0].message.content.strip().upper()
-            logger.info(f"L3 Grounding decision: '{decision}'")
+            raw_decision = chat_completion.choices[0].message.content.strip()
+            decision = clean_think_tags(raw_decision).upper()
+            logger.info(f"L3 Grounding raw decision: '{raw_decision}' -> cleaned: '{decision}'")
             
             # Returns True if the response is YES, meaning it's grounded
             return "YES" in decision
