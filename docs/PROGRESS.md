@@ -9,10 +9,22 @@ This checklist tracks completion of each phase of the project:
   - [x] FastAPI core server with health/warmup endpoints
   - [x] Next.js frontend skeleton bootstrapping
   - [x] README template
-- [/] **PHASE 2**: Dataset Ingestion
-- [ ] **PHASE 3**: Core services + unit tests
-- [ ] **PHASE 4**: Multi-strategy chunking engine
-- [ ] **PHASE 5**: Orchestrator + Guardrails
+- [x] **PHASE 2**: Dataset Ingestion
+  - [x] Hindi parquet streaming ingestion script (`validation/hinval.parquet` direct load)
+  - [x] Custom multilingual embedding configuration (`paraphrase-multilingual-MiniLM-L12-v2`)
+  - [x] Idempotent checks & upsert logic
+- [x] **PHASE 3**: Core services + unit tests
+  - [x] Qdrant Retriever client wrapping (`query_points`)
+  - [x] Sarvam STT service adapter
+  - [x] Groq LLM client wrapper
+  - [x] Core unit tests executing in local in-memory Qdrant DB
+- [x] **PHASE 4**: Multi-strategy chunking engine
+  - [x] Sentence boundary segmentation (with Devanagari `।` support)
+  - [x] Length-aware grouping with adaptive context overlap
+- [/] **PHASE 5**: Orchestrator + Guardrails
+  - [ ] Implement guardrails (L1 input, L2 context confidence, L3 grounding)
+  - [ ] Implement query orchestrator routes in FastAPI
+  - [ ] Include retry/timeout logging & request IDs
 - [ ] **PHASE 6**: Latency instrumentation & Dashboard
 - [ ] **PHASE 7**: Frontend interface
 - [ ] **PHASE 8**: Evaluation suite
