@@ -14,6 +14,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 COPY requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
+# Pre-download the fastembed multilingual model to prevent cold start timeouts
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding(model_name='sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
+
 # Copy source code
 COPY . .
 
