@@ -45,7 +45,7 @@ class LLMService:
             "You are a helpful, strict assistant. You must ONLY answer questions based on the provided context passages.\n"
             "If the context passages do not contain enough information to answer the question, you must reply with exactly:\n"
             "'I couldn’t find sufficient information in the provided knowledge base to answer that.'\n"
-            "Do not make up facts, do not hypothesize, and do not use outside knowledge. Answer in the same language as the query (Hindi)."
+            "Do not make up facts, do not hypothesize, and do not use outside knowledge. Answer in the same language as the query."
         )
 
         user_content = f"Question: {query}\n\nPassages:\n{context_str}"
