@@ -53,7 +53,9 @@ def main():
 
     # Create collection
     print(f"Creating collection '{collection_name}' with 384 dimensions...")
-    client.recreate_collection(
+    if client.collection_exists(collection_name):
+        client.delete_collection(collection_name)
+    client.create_collection(
         collection_name=collection_name,
         vectors_config=qmodels.VectorParams(
             size=384,

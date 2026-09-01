@@ -40,7 +40,9 @@ def test_embedding_dimensions():
 def test_retrieval_service_flow():
     # Force recreate in-memory collection
     client = retrieval_service.client
-    client.recreate_collection(
+    if client.collection_exists(settings.QDRANT_COLLECTION_NAME):
+        client.delete_collection(settings.QDRANT_COLLECTION_NAME)
+    client.create_collection(
         collection_name=settings.QDRANT_COLLECTION_NAME,
         vectors_config=qmodels.VectorParams(
             size=384,

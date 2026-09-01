@@ -42,7 +42,9 @@ def mock_external_services():
 def setup_qdrant_data():
     # Force recreate collection and insert test mock documents
     qclient = retrieval_service.client
-    qclient.recreate_collection(
+    if qclient.collection_exists(settings.QDRANT_COLLECTION_NAME):
+        qclient.delete_collection(settings.QDRANT_COLLECTION_NAME)
+    qclient.create_collection(
         collection_name=settings.QDRANT_COLLECTION_NAME,
         vectors_config=qmodels.VectorParams(
             size=384,

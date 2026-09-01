@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # Models
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    GROQ_MODEL_NAME: str = "groq/compound-mini"
+    GROQ_MODEL_NAME: str = "llama-3.1-8b-instant"
 
     # Environment
     ENV: str = "development"
