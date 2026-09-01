@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+const getBackendUrl = (): string => {
+  const url = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+  return url.replace(/\/+$/, "");
+};
+
+const BACKEND_URL = getBackendUrl();
 
 interface SourceDoc {
   passage_id: string;
@@ -77,19 +82,24 @@ export default function Home() {
     fetchMetrics();
   }, []);
 
-  const checkWarmupStatus = async () => {
+  const checkWarmupStatus = async (maxRetries = 12, retryDelayMs = 5000) => {
     setIsWarmingUp(true);
-    try {
-      // Ping warmup endpoint. Handles Render cold starts gracefully.
-      const res = await fetch(`${BACKEND_URL}/api/warmup`);
-      if (res.ok) {
-        setIsWarmedUp(true);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/warmup`);
+        if (res.ok) {
+          setIsWarmedUp(true);
+          setIsWarmingUp(false);
+          return;
+        }
+      } catch (e) {
+        console.warn(`Warmup ping attempt ${attempt}/${maxRetries} failed:`, e);
       }
-    } catch (e) {
-      console.error("Warmup ping failed. Server might be spun down.", e);
-    } finally {
-      setIsWarmingUp(false);
+      if (attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
     }
+    setIsWarmingUp(false);
   };
 
   const fetchMetrics = async () => {
@@ -276,6 +286,7 @@ export default function Home() {
 
       const data = await res.json() as QueryResponse;
       setResponse(data);
+      setIsWarmedUp(true);
       fetchMetrics();
     } catch (e) {
       console.error(e);
@@ -302,16 +313,25 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned error status: ${res.status}`);
+        let errMessage = `Server returned error status: ${res.status}`;
+        try {
+          const errJson = await res.json();
+          if (errJson.detail) errMessage = errJson.detail;
+        } catch {
+          // ignore JSON parsing errors for non-JSON error pages
+        }
+        throw new Error(errMessage);
       }
 
       const data = await res.json() as QueryResponse;
       setResponse(data);
+      setIsWarmedUp(true);
       fetchMetrics();
       setTypedQuery("");
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      setError("Query failed. Ensure backend service is running.");
+      const errMsg = e instanceof Error ? e.message : "Query failed. Ensure backend service is running.";
+      setError(errMsg);
     } finally {
       setIsQuerying(false);
     }
@@ -345,7 +365,7 @@ export default function Home() {
           ) : (
             <button 
               type="button"
-              onClick={checkWarmupStatus}
+              onClick={() => { checkWarmupStatus(); }}
               className="text-xs text-[#A1A1A1] hover:text-[#FAFAFA] bg-transparent hover:bg-white/[0.03] px-3 py-1.5 rounded-full border border-[#1F1F1F] hover:border-[#262626] transition-all flex items-center gap-2 font-mono"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
