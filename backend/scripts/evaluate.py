@@ -19,7 +19,9 @@ def setup_eval_database():
     settings.QDRANT_API_KEY = None
     
     qclient = retrieval_service.client
-    qclient.recreate_collection(
+    if qclient.collection_exists(settings.QDRANT_COLLECTION_NAME):
+        qclient.delete_collection(settings.QDRANT_COLLECTION_NAME)
+    qclient.create_collection(
         collection_name=settings.QDRANT_COLLECTION_NAME,
         vectors_config=qmodels.VectorParams(
             size=384,

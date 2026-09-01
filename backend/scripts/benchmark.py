@@ -92,7 +92,9 @@ def main():
         from qdrant_client.http import models as qmodels
         
         qclient = retrieval_service.client
-        qclient.recreate_collection(
+        if qclient.collection_exists(settings.QDRANT_COLLECTION_NAME):
+            qclient.delete_collection(settings.QDRANT_COLLECTION_NAME)
+        qclient.create_collection(
             collection_name=settings.QDRANT_COLLECTION_NAME,
             vectors_config=qmodels.VectorParams(
                 size=384,

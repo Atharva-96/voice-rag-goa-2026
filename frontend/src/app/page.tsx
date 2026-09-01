@@ -159,35 +159,51 @@ export default function Home() {
     }
   };
 
-  // Stop Audio Recording
-  const stopRecording = async () => {
+  // Clean up audio resources safely
+  const cleanupAudioResources = async () => {
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
     }
-    
-    // Disconnect nodes
     if (scriptProcessorRef.current) {
       scriptProcessorRef.current.disconnect();
+      scriptProcessorRef.current = null;
     }
     if (audioInputRef.current) {
       audioInputRef.current.disconnect();
+      audioInputRef.current = null;
     }
     if (audioContextRef.current) {
-      await audioContextRef.current.close();
+      if (audioContextRef.current.state !== "closed") {
+        await audioContextRef.current.close();
+      }
+      audioContextRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
     }
-
     setIsRecording(false);
+  };
 
-    // Merge Float32Array segments
-    const samples = recordedSamplesRef.current;
-    if (samples.length === 0) return;
+  // Stop Audio Recording
+  const stopRecording = async () => {
+    const samples = [...recordedSamplesRef.current];
+    await cleanupAudioResources();
+
+    if (samples.length === 0) {
+      setError("No audio detected. Please hold down or speak into the microphone before stopping.");
+      return;
+    }
 
     let totalLength = 0;
     for (const arr of samples) {
       totalLength += arr.length;
+    }
+
+    if (totalLength === 0) {
+      setError("No audio samples were recorded.");
+      return;
     }
 
     const mergedBuffer = new Float32Array(totalLength);
