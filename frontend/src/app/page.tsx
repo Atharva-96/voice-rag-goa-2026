@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 interface SourceDoc {
   passage_id: string;
@@ -42,20 +42,53 @@ interface Metrics {
   total: { p50: number; p70: number; p100: number };
 }
 
-// Extends Window interface to avoid any casts for webkitAudioContext
+interface SpeechRecognitionEventLike {
+  results: {
+    [index: number]: {
+      [index: number]: {
+        transcript: string;
+      };
+    };
+  };
+}
+
+interface SpeechRecognitionErrorLike {
+  error: string;
+}
+
+interface SpeechRecognitionLike {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognitionLike;
+}
+
+// Extends Window interface to avoid any casts for webkitAudioContext and SpeechRecognition
 interface WebkitWindow extends Window {
   AudioContext?: typeof AudioContext;
   webkitAudioContext?: typeof AudioContext;
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
 }
 
 export default function Home() {
   // App States
   const [isWarmedUp, setIsWarmedUp] = useState<boolean>(false);
   const [isWarmingUp, setIsWarmingUp] = useState<boolean>(false);
+  const [warmupStatusText, setWarmupStatusText] = useState<string>("");
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [isQuerying, setIsQuerying] = useState<boolean>(false);
   const [typedQuery, setTypedQuery] = useState<string>("");
+  const [isBrowserSTTActive, setIsBrowserSTTActive] = useState<boolean>(false);
   
   // Results States
   const [response, setResponse] = useState<QueryResponse | null>(null);
@@ -75,20 +108,99 @@ export default function Home() {
   useEffect(() => {
     checkWarmupStatus();
     fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Polls backend to handle Render free tier cold starts (~50-70 seconds)
   const checkWarmupStatus = async () => {
+    if (isWarmingUp) return;
     setIsWarmingUp(true);
-    try {
-      // Ping warmup endpoint. Handles Render cold starts gracefully.
-      const res = await fetch(`${BACKEND_URL}/api/warmup`);
-      if (res.ok) {
-        setIsWarmedUp(true);
+    setError(null);
+    setWarmupStatusText("Checking backend connection...");
+
+    const maxAttempts = 16; // 16 attempts * 4s = ~64 seconds
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        setWarmupStatusText(
+          attempt === 1 
+            ? "Connecting to backend..." 
+            : `Waking up Render backend (${attempt * 4}s elapsed)...`
+        );
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        // Ping /api/health which is fast and confirms container is listening
+        const res = await fetch(`${BACKEND_URL}/api/health`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          setIsWarmedUp(true);
+          setIsWarmingUp(false);
+          setWarmupStatusText("");
+          fetchMetrics();
+          
+          // Pre-load embedding model in the background
+          fetch(`${BACKEND_URL}/api/warmup`).catch(() => {});
+          return;
+        }
+      } catch {
+        console.log(`Render cold-start waiting attempt ${attempt}/${maxAttempts}...`);
       }
-    } catch (e) {
-      console.error("Warmup ping failed. Server might be spun down.", e);
-    } finally {
-      setIsWarmingUp(false);
+
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+      }
+    }
+
+    setIsWarmingUp(false);
+    setIsWarmedUp(false);
+    setWarmupStatusText("Backend unreachable or still starting");
+  };
+
+  // Zero-cost in-browser speech recognition (Web Speech API) fallback
+  const startBrowserSpeechRecognition = () => {
+    const w = window as unknown as WebkitWindow;
+    const SpeechRecClass = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SpeechRecClass) {
+      setError("Browser Speech Recognition is not supported in this browser. Please use Chrome/Edge or type your question.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecClass();
+      recognition.lang = "hi-IN"; // Supports Hindi & Indian English seamlessly
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      setIsBrowserSTTActive(true);
+      setError(null);
+
+      recognition.onresult = (event: SpeechRecognitionEventLike) => {
+        const transcript = event.results?.[0]?.[0]?.transcript || "";
+        if (transcript) {
+          setTypedQuery(transcript);
+        }
+        setIsBrowserSTTActive(false);
+      };
+
+      recognition.onerror = (event: SpeechRecognitionErrorLike) => {
+        setIsBrowserSTTActive(false);
+        if (event.error !== "no-speech") {
+          setError(`Microphone recognition error: ${event.error}`);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsBrowserSTTActive(false);
+      };
+
+      recognition.start();
+    } catch {
+      setIsBrowserSTTActive(false);
+      setError("Could not start browser speech recognition. Please allow mic permissions.");
     }
   };
 
@@ -271,15 +383,31 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned error status: ${res.status}`);
+        let errDetail = `Server error ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData.detail) errDetail = errData.detail;
+          else if (errData.answer) errDetail = errData.answer;
+        } catch {
+          const text = await res.text();
+          if (text) errDetail = text.slice(0, 150);
+        }
+        throw new Error(errDetail);
       }
 
       const data = await res.json() as QueryResponse;
       setResponse(data);
       fetchMetrics();
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      setError("Query failed. Ensure backend service is running and configured.");
+      const err = e instanceof Error ? e : new Error(String(e));
+      const isNetErr = err.message.includes("Failed to fetch") || err.message.includes("NetworkError");
+      if (isNetErr || !isWarmedUp) {
+        setError("Backend is unreachable or waking up from Render sleep (~50s). Please check the status indicator above.");
+        checkWarmupStatus();
+      } else {
+        setError(err.message || "Audio query failed. Ensure backend service is running.");
+      }
     } finally {
       setIsQuerying(false);
     }
@@ -302,16 +430,32 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        throw new Error(`Server returned error status: ${res.status}`);
+        let errDetail = `Server error ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData.detail) errDetail = errData.detail;
+          else if (errData.answer) errDetail = errData.answer;
+        } catch {
+          const text = await res.text();
+          if (text) errDetail = text.slice(0, 150);
+        }
+        throw new Error(errDetail);
       }
 
       const data = await res.json() as QueryResponse;
       setResponse(data);
       fetchMetrics();
       setTypedQuery("");
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      setError("Query failed. Ensure backend service is running.");
+      const err = e instanceof Error ? e : new Error(String(e));
+      const isNetErr = err.message.includes("Failed to fetch") || err.message.includes("NetworkError");
+      if (isNetErr || !isWarmedUp) {
+        setError("Backend is unreachable or waking up from Render sleep (~50s). Please wait for the green Active indicator.");
+        checkWarmupStatus();
+      } else {
+        setError(err.message || "Query failed. Ensure backend service is running.");
+      }
     } finally {
       setIsQuerying(false);
     }
@@ -334,8 +478,8 @@ export default function Home() {
         <div className="flex items-center gap-3">
           {isWarmingUp ? (
             <div className="flex items-center gap-2 text-amber-400 text-xs bg-amber-500/[0.04] px-3 py-1.5 rounded-full border border-amber-500/20 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-              <span>Warming Up...</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+              <span>{warmupStatusText || "Warming Up Backend..."}</span>
             </div>
           ) : isWarmedUp ? (
             <div className="flex items-center gap-2 text-emerald-400 text-xs bg-emerald-500/[0.04] px-3 py-1.5 rounded-full border border-emerald-500/20 font-mono">
@@ -348,8 +492,8 @@ export default function Home() {
               onClick={checkWarmupStatus}
               className="text-xs text-[#A1A1A1] hover:text-[#FAFAFA] bg-transparent hover:bg-white/[0.03] px-3 py-1.5 rounded-full border border-[#1F1F1F] hover:border-[#262626] transition-all flex items-center gap-2 font-mono"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-              <span>Check Status</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span>Wake Backend</span>
             </button>
           )}
         </div>
@@ -396,24 +540,42 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="min-h-[24px] flex items-center justify-center">
+            <div className="min-h-[24px] flex flex-col items-center justify-center gap-3">
               {isRecording ? (
                 <div className="text-xs font-mono font-semibold text-white tracking-widest uppercase flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <span>RECORDING · {recordingDuration}s</span>
+                  <span>RECORDING (Sarvam AI) · {recordingDuration}s</span>
                 </div>
               ) : isQuerying ? (
                 <div className="flex items-center gap-2 text-[#A1A1A1] text-xs font-mono">
                   <span className="inline-block w-2.5 h-2.5 border border-[#A1A1A1] border-t-transparent rounded-full animate-spin" />
                   <span>PROCESSING...</span>
                 </div>
+              ) : isBrowserSTTActive ? (
+                <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono bg-cyan-500/[0.08] px-3 py-1.5 rounded-full border border-cyan-500/20 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                  <span>LISTENING IN BROWSER (HINDI/ENGLISH)...</span>
+                </div>
               ) : (
-                <p className="text-[11px] text-[#525252] font-mono uppercase tracking-wider">TAP MICROPHONE TO SPEAK</p>
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-[11px] text-[#525252] font-mono uppercase tracking-wider">TAP TO RECORD FOR SARVAM AI</p>
+                  <button
+                    type="button"
+                    onClick={startBrowserSpeechRecognition}
+                    disabled={isQuerying || isRecording}
+                    className="text-[11px] text-[#A1A1A1] hover:text-[#FAFAFA] bg-white/[0.03] hover:bg-white/[0.08] px-3 py-1.5 rounded-lg border border-white/10 transition-all flex items-center gap-1.5 font-mono"
+                  >
+                    <svg className="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+                    </svg>
+                    <span>Or Use Free Browser Mic (No API Key)</span>
+                  </button>
+                </div>
               )}
             </div>
 
             {error && (
-              <div className="bg-red-500/[0.04] border border-red-500/20 text-red-400 rounded-xl p-3 text-xs w-full text-left font-mono">
+              <div className="bg-red-500/[0.04] border border-red-500/20 text-red-400 rounded-xl p-3 text-xs w-full text-left font-mono whitespace-pre-wrap">
                 {error}
               </div>
             )}

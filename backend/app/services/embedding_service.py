@@ -15,6 +15,9 @@ class EmbeddingService:
             # Set threads to 1 to minimize memory footprint in constrained environments
             os.environ["OMP_NUM_THREADS"] = "1"
             os.environ["MKL_NUM_THREADS"] = "1"
+            # Fallback mirror for regions/ISPs where huggingface.co connections are reset
+            if "HF_ENDPOINT" not in os.environ:
+                os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
             
             self._model = TextEmbedding(
                 model_name=self.model_name,

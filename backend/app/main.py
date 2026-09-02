@@ -53,6 +53,11 @@ def record_latency(stt_ms: Optional[float], retrieval_ms: float, llm_ms: float, 
     })
     logger.info(f"Latency log added - Total: {total_ms:.2f}ms (STT: {stt_ms}ms, Retrieval: {retrieval_ms:.2f}ms, LLM: {llm_ms:.2f}ms)")
 
+@app.get("/")
+def root():
+    return {"message": "Svara Voice-Enabled RAG Orchestrator is running."}
+
+@app.get("/health", response_model=HealthResponse)
 @app.get("/api/health", response_model=HealthResponse)
 def health_check():
     qdrant_connected = False
@@ -179,12 +184,22 @@ async def query_audio(file: UploadFile = File(...)):
     try:
         query_str = stt_service.transcribe(audio_bytes, file.filename)
     except Exception as e:
-        logger.error(f"[{request_id}] STT transcription failed: {e}")
+        err_str = str(e)
+        logger.error(f"[{request_id}] STT transcription failed: {err_str}")
         total_ms = (time.perf_counter() - start_total) * 1000
+        
+        # User-friendly explanation based on error type
+        if "quota" in err_str.lower() or "402" in err_str:
+            user_msg = "Sarvam AI voice credits exhausted (HTTP 402). You can type your query in Hindi/English in the manual input box below!"
+        elif "no clear speech" in err_str.lower():
+            user_msg = "No clear speech detected in your audio. Please speak closer to the microphone and try again."
+        else:
+            user_msg = f"Voice transcription error: {err_str}. You can also type your question below."
+
         return QueryResponse(
             request_id=request_id,
             query="",
-            answer="Transcribing voice input failed. Please try again.",
+            answer=user_msg,
             sources=[],
             latency=LatencyBreakdown(stt_ms=(time.perf_counter() - start_stt) * 1000, retrieval_ms=0.0, llm_ms=0.0, total_ms=total_ms),
             guardrail_refusal=True

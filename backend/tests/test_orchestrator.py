@@ -32,9 +32,21 @@ def mock_external_services():
 
     mock_generate = MagicMock(side_effect=side_effect_generate)
     mock_validate_grounding = MagicMock(return_value=True)
+    
+    def mock_embed(text):
+        vec = [0.0] * 384
+        if "राजधानी" in text:
+            vec[0] = 1.0
+        elif "कॉर्पोरेशन" in text or "निगम" in text:
+            vec[1] = 1.0
+        else:
+            vec[2] = 1.0
+        return vec
+    mock_embed_fn = MagicMock(side_effect=mock_embed)
 
     with patch.object(stt_service, "transcribe", mock_transcribe), \
          patch.object(llm_service, "generate_answer", mock_generate), \
+         patch.object(embedding_service, "embed_text", mock_embed_fn), \
          patch.object(guardrails, "validate_grounding", mock_validate_grounding):
         yield
 

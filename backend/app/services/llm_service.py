@@ -77,6 +77,24 @@ class LLMService:
                 return clean_think_tags(answer)
             except Exception as e:
                 logger.error(f"Groq API error on attempt {attempt + 1}: {e}")
+                err_text = str(e).lower()
+                if ("model_not_found" in err_text or "does not exist" in err_text) and settings.GROQ_MODEL_NAME != "groq/compound-mini":
+                    logger.warning(f"Groq model '{settings.GROQ_MODEL_NAME}' unavailable. Falling back to 'groq/compound-mini'...")
+                    try:
+                        fallback_completion = self.client.chat.completions.create(
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_content}
+                            ],
+                            model="groq/compound-mini",
+                            temperature=0.0,
+                            max_tokens=500
+                        )
+                        answer = fallback_completion.choices[0].message.content.strip()
+                        return clean_think_tags(answer)
+                    except Exception as fallback_e:
+                        logger.error(f"Fallback model failed: {fallback_e}")
+
                 if attempt == max_retries - 1:
                     raise e
                 time.sleep(2 ** attempt)  # Exponential backoff
